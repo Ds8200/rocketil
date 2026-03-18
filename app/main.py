@@ -1,16 +1,15 @@
 import asyncio
+import sys
+from pathlib import Path
 from contextlib import asynccontextmanager
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
 
-from app.api.routes import health, ws
+from app.api.routes import health, ws, dashboard
+from app.core.config import settings
 from app.core.poller import poll_loop
-
-from pathlib import Path
-
-path_current = Path(__file__).parent
-path_dashboard = path_current / "templates" / "dashboard.html"
 
 
 @asynccontextmanager
@@ -25,16 +24,9 @@ app = FastAPI(title="RocketIL Dashboard", lifespan=lifespan)
 
 app.include_router(ws.router)
 app.include_router(health.router)
+app.include_router(dashboard.router)
 
-
-@app.get("/")
-async def dashboard() -> FileResponse:
-    try:
-        return FileResponse(path_dashboard)
-    except FileNotFoundError:
-        return {"error": "Dashboard file not found" }
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=True)
