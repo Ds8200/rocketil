@@ -9,8 +9,7 @@ from app.services.processor import process_alerts
 
 
 async def poll_loop() -> None:
-    last_ts = 0
-    # last_ts = int(time.time() * 1000)
+    last_ts = int(time.time() * 1000)
     print("[poller] Started")
 
     while True:
@@ -24,7 +23,7 @@ async def poll_loop() -> None:
                     payload = json.dumps(alert.to_dict(), ensure_ascii=False)
                     await manager.broadcast(payload)
 
-                # last_ts = int(max(a.timestamp.timestamp() * 1000 for a in alerts))
+                last_ts = int(max(a.timestamp.timestamp() * 1000 for a in alerts))
                 print(f"[poller] Sent {len(alerts)} alert(s) to {manager.count} client(s)")
 
         except asyncio.CancelledError:
