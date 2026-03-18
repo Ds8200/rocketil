@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RocketIL — לוח בקרה התרעות פיקוד העורף</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3349;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --red: #ef4444;
+      --orange: #f97316;
+      --yellow: #eab308;
+      --green: #22c55e;
+      --blue: #3b82f6;
+      --purple: #a855f7;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ─── Header ─── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--text);
+    }
+
+    .header-stats {
+      display: flex;
+      gap: 16px;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value.red { color: var(--red); }
+    .stat-value.green { color: var(--green); }
+    .stat-value.blue { color: var(--blue); }
+
+    .ws-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .ws-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      transition: background 0.3s;
+    }
+
+    .ws-dot.connected { background: var(--green); animation: pulse 2s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ─── Layout ─── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ─── Sidebar ─── */
+    .sidebar {
+      width: 340px;
+      min-width: 280px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header span {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .clear-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .clear-btn:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .alerts-list {
+      overflow-y: auto;
+      flex: 1;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .alerts-list::-webkit-scrollbar { width: 4px; }
+    .alerts-list::-webkit-scrollbar-track { background: transparent; }
+    .alerts-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ─── Alert Card ─── */
+    .alert-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-right: 3px solid transparent;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .alert-card:hover {
+      background: #2a2f45;
+      transform: translateX(-2px);
+    }
+
+    .alert-card.red    { border-right-color: var(--red); }
+    .alert-card.orange { border-right-color: var(--orange); }
+    .alert-card.yellow { border-right-color: var(--yellow); }
+    .alert-card.green  { border-right-color: var(--green); }
+    .alert-card.blue   { border-right-color: var(--blue); }
+    .alert-card.purple { border-right-color: var(--purple); }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .card-city {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .card-time {
+      font-size: 0.68rem;
+      color: var(--muted);
+      direction: ltr;
+    }
+
+    .card-badges {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .badge.red    { background: rgba(239,68,68,0.15);  color: var(--red); }
+    .badge.orange { background: rgba(249,115,22,0.15); color: var(--orange); }
+    .badge.yellow { background: rgba(234,179,8,0.15);  color: var(--yellow); }
+    .badge.green  { background: rgba(34,197,94,0.15);  color: var(--green); }
+    .badge.blue   { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .badge.purple { background: rgba(168,85,247,0.15); color: var(--purple); }
+
+    .card-region {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ─── Map ─── */
+    #map {
+      flex: 1;
+    }
+
+    /* Leaflet popup dark theme */
+    .leaflet-popup-content-wrapper {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    .leaflet-popup-tip { background: var(--surface2); }
+
+    .popup-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+    }
+
+    .popup-row {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 2px 0;
+      display: flex;
+      gap: 6px;
+    }
+
+    .popup-row strong { color: var(--text); }
+
+    /* ─── Empty state ─── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: var(--muted);
+      font-size: 0.8rem;
+      gap: 8px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .empty-state svg { opacity: 0.3; }
+
+    /* ─── Location button ─── */
+    .loc-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .loc-btn:hover { border-color: var(--blue); color: var(--blue); }
+    .loc-btn.saved { border-color: var(--green); color: var(--green); }
+
+    /* ─── Nearby alert modal ─── */
+    .alert-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      animation: flashBg 0.5s ease infinite alternate;
+    }
+    .alert-modal.visible { display: flex; }
+
+    @keyframes flashBg {
+      from { background: rgba(239,68,68,0.10); }
+      to   { background: rgba(239,68,68,0.32); }
+    }
+
+    .alert-modal-box {
+      background: var(--surface);
+      border: 2px solid var(--red);
+      border-radius: 16px;
+      padding: 32px 40px;
+      max-width: 440px;
+      width: 90%;
+      text-align: center;
+      animation: flashBorder 0.5s ease infinite alternate;
+    }
+
+    @keyframes flashBorder {
+      from { border-color: var(--red);   box-shadow: 0 0 24px rgba(239,68,68,0.35); }
+      to   { border-color: #ff9999;      box-shadow: 0 0 60px rgba(239,68,68,0.75); }
+    }
+
+    .modal-icon   { font-size: 3.2rem; margin-bottom: 10px; }
+    .modal-title  { font-size: 1.5rem; font-weight: 700; color: var(--red); margin-bottom: 8px; }
+    .modal-city   { font-size: 1.15rem; font-weight: 600; margin-bottom: 4px; }
+    .modal-detail { font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
+    .modal-dist   { font-size: 0.78rem; color: var(--orange); margin-bottom: 22px; }
+
+    .modal-close {
+      background: var(--red);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 28px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .modal-close:hover { opacity: 0.8; }
+
+    /* ─── Map switcher ─── */
+    .map-switcher {
+      position: relative;
+    }
+
+    .map-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .map-btn:hover, .map-btn.open { border-color: var(--blue); color: var(--blue); }
+
+    .map-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      min-width: 240px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      z-index: 2000;
+      overflow: hidden;
+    }
+    .map-dropdown.open { display: block; }
+
+    .map-dropdown-title {
+      padding: 10px 14px 8px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .map-option {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-bottom: 1px solid var(--border);
+    }
+    .map-option:last-child { border-bottom: none; }
+    .map-option:hover { background: var(--surface2); }
+    .map-option.active { background: rgba(59,130,246,0.1); }
+
+    .map-option-name {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .map-option.active .map-option-name { color: var(--blue); }
+
+    .map-option-desc {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 900px) {
+      .sidebar { width: 280px; }
+    }
+
+    @media (max-width: 700px) {
+      header {
+        flex-wrap: wrap;
+        padding: 8px 12px;
+        gap: 8px;
+      }
+
+      header h1 {
+        font-size: 0.9rem;
+        flex: 1 1 100%;        /* שורה ראשונה לבד */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .header-stats {
+        gap: 10px;
+        flex: 1;
+      }
+
+      .stat-value { font-size: 1.1rem; }
+
+      .map-switcher,
+      .loc-btn,
+      .ws-status { flex-shrink: 0; }
+
+      /* הדרופדאון — ממוקם מימין כדי לא לצאת מהמסך */
+      .map-dropdown {
+        left: auto;
+        right: 0;
+        min-width: 200px;
+      }
+
+      .ws-status span { display: none; }   /* מציג רק הנקודה */
+
+      .main { flex-direction: column-reverse; }
+      .sidebar {
+        width: 100%;
+        height: 260px;
+        min-width: unset;
+        border-left: none;
+        border-top: 1px solid var(--border);
+      }
+      #map { flex: 1; min-height: 0; }
+    }
+
+    @media (max-width: 400px) {
+      header h1 { font-size: 0.8rem; }
+      .map-btn, .loc-btn { font-size: 0.68rem; padding: 4px 8px; }
+      .sidebar { height: 230px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🚀 RocketIL — לוח בקרה התרעות פיקוד העורף</h1>
+
+  <div class="header-stats">
+    <div class="stat">
+      <div class="stat-value blue" id="stat-total">0</div>
+      <div class="stat-label">סה״כ</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value red" id="stat-active">0</div>
+      <div class="stat-label">פעילות</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value green" id="stat-ended">0</div>
+      <div class="stat-label">הסתיימו</div>
+    </div>
+  </div>
+
+  <div class="map-switcher">
+    <button class="map-btn" id="map-btn" onclick="toggleMapDropdown()">🗺️ סוג מפה</button>
+    <div class="map-dropdown" id="map-dropdown">
+      <div class="map-dropdown-title">בחר סוג מפה</div>
+    </div>
+  </div>
+
+  <button class="loc-btn" id="loc-btn" onclick="requestLocation()">📍 מיקום שלי</button>
+
+  <div class="ws-status">
+    <div class="ws-dot" id="ws-dot"></div>
+    <span id="ws-label">מתחבר...</span>
+  </div>
+</header>
+
+<!-- Nearby alert modal -->
+<div class="alert-modal" id="alert-modal">
+  <div class="alert-modal-box">
+    <div class="modal-icon">🚨</div>
+    <div class="modal-title">התרעה באזורך!</div>
+    <div class="modal-city" id="modal-city">—</div>
+    <div class="modal-detail" id="modal-detail">—</div>
+    <div class="modal-dist" id="modal-dist"></div>
+    <button class="modal-close" onclick="closeModal()">הבנתי</button>
+  </div>
+</div>
+
+<div class="main">
+  <div id="map"></div>
+
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span>התראות אחרונות</span>
+      <button class="clear-btn" onclick="clearAll()">נקה הכל</button>
+    </div>
+    <div class="alerts-list" id="alerts-list">
+      <div class="empty-state" id="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span>ממתין להתראות...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── Map init ───────────────────────────────────────────────
+  const map = L.map('map', { zoomControl: true }).setView([31.5, 35.0], 8);
+
+  const TILE_PRESETS = [
+    {
+      id: 'carto-dark', name: '🌙 כהה', desc: 'CARTO Dark — ברירת מחדל',
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      attr: '© OpenStreetMap © CARTO', opts: { subdomains: 'abcd', maxZoom: 19 },
+    },
+    {
+      id: 'osm', name: '🗺️ OpenStreetMap', desc: 'עברית מלאה בישראל',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attr: '© OpenStreetMap contributors', opts: { maxZoom: 19 },
+    },
+    {
+      id: 'carto-light', name: '☀️ בהיר', desc: 'CARTO Light',
+      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      attr: '© OpenStreetMap © CARTO', opts: { subdomains: 'abcd', maxZoom: 19 },
+    },
+    {
+      id: 'esri-street', name: '🏙️ רחובות', desc: 'Esri World Street Map — עברית',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri', opts: { maxZoom: 18 },
+    },
+    {
+      id: 'esri-topo', name: '⛰️ טופוגרפי', desc: 'Esri World Topo Map — עברית',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri', opts: { maxZoom: 18 },
+    },
+    {
+      id: 'esri-satellite', name: '🛰️ לווין', desc: 'Esri World Imagery',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri', opts: { maxZoom: 18 },
+    },
+    {
+      id: 'esri-sat-labels', name: '🛰️ לווין + שמות', desc: 'לווין עם שמות מקומות',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri', opts: { maxZoom: 18 },
+      overlay: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    },
+    {
+      id: 'stadia-dark', name: '🌃 Stadia Dark', desc: 'כהה ומינימליסטי',
+      url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+      attr: '© Stadia Maps © OpenStreetMap', opts: { maxZoom: 20 },
+    },
+  ];
+
+  let currentTileLayer  = null;
+  let currentOverlay    = null;
+  let activeTileId      = 'carto-dark';
+
+  function applyTile(preset) {
+    if (currentTileLayer) map.removeLayer(currentTileLayer);
+    if (currentOverlay)   map.removeLayer(currentOverlay);
+    currentTileLayer = L.tileLayer(preset.url, { attribution: preset.attr, ...preset.opts }).addTo(map);
+    if (preset.overlay) {
+      currentOverlay = L.tileLayer(preset.overlay, { attribution: preset.attr, opacity: 0.8 }).addTo(map);
+    } else {
+      currentOverlay = null;
+    }
+    activeTileId = preset.id;
+    renderDropdownItems();
+  }
+
+  function renderDropdownItems() {
+    const dropdown = document.getElementById('map-dropdown');
+    // שמור את הכותרת, החלף את שאר הפריטים
+    const title = dropdown.querySelector('.map-dropdown-title');
+    dropdown.innerHTML = '';
+    dropdown.appendChild(title);
+    TILE_PRESETS.forEach(preset => {
+      const el = document.createElement('div');
+      el.className = 'map-option' + (preset.id === activeTileId ? ' active' : '');
+      el.innerHTML = `<div class="map-option-name">${preset.name}</div><div class="map-option-desc">${preset.desc}</div>`;
+      el.onclick = () => { applyTile(preset); toggleMapDropdown(false); };
+      dropdown.appendChild(el);
+    });
+  }
+
+  function toggleMapDropdown(force) {
+    const btn      = document.getElementById('map-btn');
+    const dropdown = document.getElementById('map-dropdown');
+    const open     = force !== undefined ? force : !dropdown.classList.contains('open');
+    btn.classList.toggle('open', open);
+    dropdown.classList.toggle('open', open);
+  }
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.map-switcher')) toggleMapDropdown(false);
+  });
+
+  // הפעל שכבת ברירת מחדל ובנה את הרשימה
+  applyTile(TILE_PRESETS[0]);
+
+  // ─── State ──────────────────────────────────────────────────
+  const alerts = [];
+  const markers = {};        // alert_id → marker (לניווט מהסיידבר)
+  const regionMarkers = {};  // region_name → marker (דדופ על המפה — רק עדכון אחרון לאיזור)
+  let totalCount = 0, activeCount = 0, endedCount = 0;
+
+  // ─── Color logic ────────────────────────────────────────────
+  const TYPE_LABELS = {
+    missiles: 'טילים', rockets: 'רקטות', infiltration: 'חדירה',
+    earthquake: 'רעידת אדמה', update: 'הסתיים', hostile_aircraft: 'כלי טיס עוין',
+    tsunami: 'צונאמי', hazmat: 'חומרים מסוכנים', terror: 'פיגוע',
+  };
+
+  function getColorKey(alert) {
+    const type = (alert.type || '').toLowerCase();
+    const sev  = (alert.severity || '').toLowerCase();
+    if (type === 'update')              return 'green';
+    if (['missiles','rockets','hostile_aircraft','terror','infiltration'].includes(type)) return 'red';
+    if (['earthquake','tsunami','hazmat'].includes(type)) return 'purple';
+    if (sev === 'critical')             return 'red';
+    if (sev === 'warn' || sev === 'warning') return 'orange';
+    if (sev === 'info')                 return 'yellow';
+    return 'blue';
+  }
+
+  const COLOR_HEX = {
+    red: '#ef4444', orange: '#f97316', yellow: '#eab308',
+    green: '#22c55e', blue: '#3b82f6', purple: '#a855f7',
+  };
+
+  function typeLabel(type) {
+    return TYPE_LABELS[type?.toLowerCase()] || type || '—';
+  }
+
+  function formatTime(ts) {
+    if (!ts) return '—';
+    const d = new Date(typeof ts === 'number' ? ts : ts);
+    if (isNaN(d)) return ts;
+    return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  // ─── Stats ──────────────────────────────────────────────────
+  function updateStats() {
+    document.getElementById('stat-total').textContent  = totalCount;
+    document.getElementById('stat-active').textContent = activeCount;
+    document.getElementById('stat-ended').textContent  = endedCount;
+  }
+
+  // ─── Sidebar card ───────────────────────────────────────────
+  function addCard(alert, colorKey) {
+    const list = document.getElementById('alerts-list');
+    document.getElementById('empty-state')?.remove();
+
+    const card = document.createElement('div');
+    card.className = `alert-card ${colorKey}`;
+    card.id = `card-${alert.alert_id}`;
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="card-city">${alert.oref_city || alert.region_name || '—'}</span>
+        <span class="card-time">${formatTime(alert.timestamp)}</span>
+      </div>
+      <div class="card-badges">
+        <span class="badge ${colorKey}">${typeLabel(alert.type)}</span>
+        <span class="badge ${colorKey}">${alert.severity || '—'}</span>
+      </div>
+      ${alert.region_name ? `<div class="card-region">${alert.region_name}</div>` : ''}
+    `;
+
+    card.addEventListener('click', () => {
+      if (alert.lat && alert.lng) {
+        map.flyTo([alert.lat, alert.lng], 13, { duration: 0.8 });
+        markers[alert.alert_id]?.openPopup();
+      }
+    });
+
+    list.insertBefore(card, list.firstChild);
+
+    // keep max 100 cards
+    if (list.children.length > 100) {
+      list.removeChild(list.lastChild);
+    }
+  }
+
+  // ─── Map marker ─────────────────────────────────────────────
+  function addMarker(alert, colorKey) {
+    if (!alert.lat || !alert.lng) return;
+
+    const color = COLOR_HEX[colorKey];
+    const isEnded = colorKey === 'green';
+
+    const circle = L.circleMarker([alert.lat, alert.lng], {
+      radius: isEnded ? 7 : 10,
+      fillColor: color,
+      color: '#fff',
+      weight: 1.5,
+      opacity: 0.9,
+      fillOpacity: isEnded ? 0.5 : 0.85,
+    });
+
+    circle.bindPopup(`
+      <div class="popup-title">${alert.oref_city || alert.region_name || '—'}</div>
+      <div class="popup-row"><span>סוג:</span><strong>${typeLabel(alert.type)}</strong></div>
+      <div class="popup-row"><span>חומרה:</span><strong>${alert.severity || '—'}</strong></div>
+      <div class="popup-row"><span>אזור:</span><strong>${alert.region_name || '—'}</strong></div>
+      <div class="popup-row"><span>זמן:</span><strong>${formatTime(alert.timestamp)}</strong></div>
+      <div class="popup-row"><span>ID:</span><strong>${alert.event_id || '—'}</strong></div>
+    `);
+
+    // הסר סמן ישן לאותו איזור מהמפה (דדופ לפי region_name)
+    const regionKey = alert.region_name || alert.oref_city;
+    if (regionKey && regionMarkers[regionKey]) {
+      map.removeLayer(regionMarkers[regionKey]);
+    }
+
+    circle.addTo(map);
+    markers[alert.alert_id] = circle;
+    if (regionKey) regionMarkers[regionKey] = circle;
+
+    // pulse animation for active threats
+    if (!isEnded) {
+      let growing = true;
+      const interval = setInterval(() => {
+        if (!map.hasLayer(circle)) { clearInterval(interval); return; }
+        const r = circle.getRadius();
+        circle.setRadius(growing ? r + 1 : r - 1);
+        if (r >= 13) growing = false;
+        if (r <= 9)  growing = true;
+      }, 200);
+      setTimeout(() => clearInterval(interval), 10000);
+    }
+  }
+
+  // ─── Handle incoming alert ───────────────────────────────────
+  function handleAlert(alert) {
+    const colorKey = getColorKey(alert);
+    const isEnded = colorKey === 'green';
+
+    totalCount++;
+    if (isEnded) endedCount++; else activeCount++;
+    updateStats();
+
+    addCard(alert, colorKey);
+    addMarker(alert, colorKey);
+    checkNearby(alert);
+  }
+
+  // ─── Clear all ──────────────────────────────────────────────
+  function clearAll() {
+    Object.values(regionMarkers).forEach(m => map.removeLayer(m));
+    Object.keys(markers).forEach(k => delete markers[k]);
+    Object.keys(regionMarkers).forEach(k => delete regionMarkers[k]);
+    const list = document.getElementById('alerts-list');
+    list.innerHTML = `
+      <div class="empty-state" id="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span>ממתין להתראות...</span>
+      </div>`;
+    totalCount = activeCount = endedCount = 0;
+    updateStats();
+  }
+
+  // ─── WebSocket ──────────────────────────────────────────────
+  const WS_URL = `ws://${window.location.host}/ws`;
+  let ws, reconnectTimer;
+
+  function connect() {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      document.getElementById('ws-dot').className   = 'ws-dot connected';
+      document.getElementById('ws-label').textContent = 'מחובר';
+      clearTimeout(reconnectTimer);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const alert = JSON.parse(event.data);
+        handleAlert(alert);
+      } catch (e) {
+        console.error('Parse error:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      document.getElementById('ws-dot').className   = 'ws-dot';
+      document.getElementById('ws-label').textContent = 'מנותק — מתחבר מחדש...';
+      reconnectTimer = setTimeout(connect, 3000);
+    };
+
+    ws.onerror = () => ws.close();
+  }
+
+  connect();
+
+  // ─── User location ──────────────────────────────────────────
+  const NEARBY_KM = 50;
+  let userLocation = null;
+  let userMarker   = null;
+
+  function makeUserIcon() {
+    return L.divIcon({
+      className: '',
+      iconSize:    [30, 38],
+      iconAnchor:  [15, 38],
+      popupAnchor: [0, -40],
+      html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
+        <path d="M15 0C8.4 0 3 5.4 3 12c0 8.1 12 26 12 26S27 20.1 27 12C27 5.4 21.6 0 15 0z"
+              fill="#3b82f6" stroke="white" stroke-width="2"/>
+        <circle cx="15" cy="12" r="5" fill="white"/>
+      </svg>`,
+    });
+  }
+
+  function placeUserMarker(lat, lng, accuracy) {
+    if (userMarker) map.removeLayer(userMarker);
+    userMarker = L.marker([lat, lng], { icon: makeUserIcon(), zIndexOffset: 1000 });
+    userMarker.bindPopup(`
+      <div class="popup-title">📍 המיקום שלך</div>
+      <div class="popup-row"><span>קו רוחב:</span><strong>${lat.toFixed(6)}°</strong></div>
+      <div class="popup-row"><span>קו אורך:</span><strong>${lng.toFixed(6)}°</strong></div>
+      ${accuracy ? `<div class="popup-row"><span>דיוק:</span><strong>±${Math.round(accuracy)} מ׳</strong></div>` : ''}
+      <div class="popup-row"><span>רדיוס התרעה:</span><strong>${NEARBY_KM} ק"מ</strong></div>
+    `);
+    userMarker.addTo(map);
+  }
+
+  function requestLocation() {
+    const btn = document.getElementById('loc-btn');
+    if (!navigator.geolocation) {
+      btn.textContent = '📍 לא נתמך';
+      return;
+    }
+    btn.textContent = '📍 מאתר...';
+    btn.classList.remove('saved');
+    navigator.geolocation.getCurrentPosition(pos => {
+      userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+      btn.textContent = `📍 ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`;
+      btn.classList.add('saved');
+      placeUserMarker(userLocation.lat, userLocation.lng, userLocation.accuracy);
+      map.flyTo([userLocation.lat, userLocation.lng], 11, { duration: 1 });
+    }, () => {
+      btn.textContent = '📍 ללא הרשאה';
+    });
+  }
+
+  function haversineKm(lat1, lng1, lat2, lng2) {
+    const R = 6371, toRad = x => x * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function checkNearby(alert) {
+    if (!userLocation || !alert.lat || !alert.lng) return;
+    const dist = haversineKm(userLocation.lat, userLocation.lng, alert.lat, alert.lng);
+    if (dist > NEARBY_KM) return;
+    triggerNearbyAlert(alert, dist);
+  }
+
+  // ─── Modal ──────────────────────────────────────────────────
+  let _modalOpen = false;
+
+  function triggerNearbyAlert(alert, distKm) {
+    document.getElementById('modal-city').textContent   = alert.oref_city || alert.region_name || '—';
+    document.getElementById('modal-detail').textContent = `סוג: ${typeLabel(alert.type)} | חומרה: ${alert.severity || '—'}`;
+    document.getElementById('modal-dist').textContent   = `מרחק ממיקומך: ~${Math.round(distKm)} ק"מ`;
+    document.getElementById('alert-modal').classList.add('visible');
+    // מנגן את הסירן רק אם המודאל לא היה כבר פתוח
+    if (!_modalOpen) playSiren();
+    _modalOpen = true;
+  }
+
+  function closeModal() {
+    document.getElementById('alert-modal').classList.remove('visible');
+    _modalOpen = false;
+    stopSiren();
+  }
+
+  // ─── Siren (Web Audio API) ───────────────────────────────────
+  // AudioContext חייב להיווצר על gesture — נוצר בפעם הראשונה שהמשתמש לוחץ
+  let _audioCtx = null;
+  let _sirenOsc = null;
+
+  document.addEventListener('click', () => {
+    if (!_audioCtx) {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } else if (_audioCtx.state === 'suspended') {
+      _audioCtx.resume();
+    }
+  });
+
+  async function playSiren() {
+    if (!_audioCtx) {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (_audioCtx.state === 'suspended') await _audioCtx.resume();
+
+    // עצור סירן קודם אם רץ
+    try { _sirenOsc?.stop(); } catch {}
+
+    const osc  = _audioCtx.createOscillator();
+    const gain = _audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(_audioCtx.destination);
+
+    osc.type = 'sawtooth';
+    const t = _audioCtx.currentTime;
+    const cycles = 5;
+
+    gain.gain.setValueAtTime(0.4, t);
+
+    for (let i = 0; i < cycles; i++) {
+      osc.frequency.setValueAtTime(420, t + i * 2);
+      osc.frequency.linearRampToValueAtTime(900, t + i * 2 + 1);
+      osc.frequency.linearRampToValueAtTime(420, t + i * 2 + 2);
+    }
+    gain.gain.exponentialRampToValueAtTime(0.001, t + cycles * 2);
+
+    osc.start(t);
+    osc.stop(t + cycles * 2);
+    _sirenOsc = osc;
+  }
+
+  function stopSiren() {
+    try { _sirenOsc?.stop(); _sirenOsc = null; } catch {}
+  }
+
+  requestLocation();
+</script>
+</body>
+</html>
