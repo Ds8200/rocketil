@@ -45,7 +45,7 @@ rocketil API ──► poller (asyncio) ──► broadcaster ──► WebSocke
 | מודל | `app/models/alert.py` | Pydantic Alert — ולידציה ו-serialization |
 | Routes | `app/api/routes/ws.py` | נקודת קצה WebSocket (`/ws`) |
 | Routes | `app/api/routes/health.py` | בדיקת תקינות (`/health`) |
-| Frontend | `dashboard.html` | דשבורד מלא — מפה + לוג + התרעות |
+| Frontend | `app/templates/dashboard.html` | דשבורד מלא — מפה + לוג + התרעות |
 
 ---
 
@@ -66,9 +66,10 @@ rocketil_v2/
 │   │   ├── fetcher.py           # HTTP async לrocketil API
 │   │   ├── processor.py         # עיבוד וניקוי נתונים
 │   │   └── broadcaster.py       # ConnectionManager — שידור לכל הלקוחות
-│   └── models/
-│       └── alert.py             # מודל Alert עם pydantic
-├── dashboard.html               # הדשבורד המלא (מוגש מ-FastAPI)
+│   ├── models/
+│   │   └── alert.py             # מודל Alert עם pydantic
+│   └── templates/
+│       └── dashboard.html       # הדשבורד המלא (מוגש מ-FastAPI)
 ├── Dockerfile
 ├── docker-compose.yaml
 ├── requirements.txt

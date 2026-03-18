@@ -33,3 +33,8 @@ async def dashboard() -> FileResponse:
         return FileResponse(path_dashboard)
     except FileNotFoundError:
         return {"error": "Dashboard file not found" }
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
