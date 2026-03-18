@@ -444,6 +444,18 @@
     }
     .ob-start-btn:hover { opacity: 0.85; }
 
+    .ob-skip-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .ob-skip-label input { accent-color: var(--blue); width: 15px; height: 15px; cursor: pointer; }
+    .ob-skip-label:hover span { color: var(--text); }
+
     .ob-note {
       font-size: 0.7rem;
       color: var(--muted);
@@ -523,6 +535,21 @@
     }
 
     /* ─── Responsive ─── */
+    /* ─── Mute button ─── */
+    .mute-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .mute-btn:hover  { border-color: var(--orange); }
+    .mute-btn.muted  { border-color: var(--red); background: rgba(239,68,68,0.1); }
+
     /* ─── header-actions wrapper (desktop) ─── */
     .header-actions {
       display: flex;
@@ -657,6 +684,7 @@
       </div>
     </div>
     <button class="loc-btn" id="loc-btn" onclick="requestLocation()">📍 מיקום שלי</button>
+    <button class="mute-btn" id="mute-btn" onclick="toggleMute()" title="השתק התרעות קוליות">🔔</button>
   </div>
 
   <div class="ws-status">
@@ -718,6 +746,10 @@
     </div>
 
     <div class="onboarding-footer">
+      <label class="ob-skip-label">
+        <input type="checkbox" id="ob-skip-cb">
+        <span>אל תציג שוב בפתיחה הבאה</span>
+      </label>
       <button class="ob-start-btn" onclick="closeOnboarding()">הבנתי — בוא נתחיל 🚀</button>
       <p class="ob-note">האתר מתחבר אוטומטית ומציג התרעות חיות ברגע שהן מתקבלות.<br>אין צורך לרענן.</p>
     </div>
@@ -762,9 +794,16 @@
   const map = L.map('map', { zoomControl: true }).setView([31.5, 35.0], 8);
 
   const TILE_PRESETS = [
+    // ── ברירת מחדל ──
+    {
+      id: 'esri-sat-labels', name: '🛰️ לווין + שמות', desc: 'ברירת מחדל — לווין עם שמות מקומות',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri', opts: { maxZoom: 18 },
+      overlay: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    },
     // ── כהות ──
     {
-      id: 'carto-dark', name: '🌙 כהה', desc: 'CARTO Dark — ברירת מחדל',
+      id: 'carto-dark', name: '🌙 כהה', desc: 'CARTO Dark',
       url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       attr: '© OpenStreetMap © CARTO', opts: { subdomains: 'abcd', maxZoom: 19 },
     },
@@ -833,12 +872,6 @@
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       attr: '© Esri', opts: { maxZoom: 18 },
     },
-    {
-      id: 'esri-sat-labels', name: '🛰️ לווין + שמות', desc: 'לווין עם שמות מקומות',
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      attr: '© Esri', opts: { maxZoom: 18 },
-      overlay: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-    },
     // ── מיוחדות ──
     {
       id: 'stadia-dark', name: '🌃 Stadia Dark', desc: 'כהה ומינימליסטי',
@@ -854,7 +887,7 @@
 
   let currentTileLayer  = null;
   let currentOverlay    = null;
-  let activeTileId      = 'carto-dark';
+  let activeTileId      = 'esri-sat-labels';
 
   function applyTile(preset) {
     if (currentTileLayer) map.removeLayer(currentTileLayer);
@@ -866,6 +899,7 @@
       currentOverlay = null;
     }
     activeTileId = preset.id;
+    localStorage.setItem('rocketil_tile', preset.id);
     renderDropdownItems();
   }
 
@@ -896,8 +930,9 @@
     if (!e.target.closest('.map-switcher')) toggleMapDropdown(false);
   });
 
-  // הפעל שכבת ברירת מחדל ובנה את הרשימה
-  applyTile(TILE_PRESETS[0]);
+  // הפעל מפה — מ-localStorage או ברירת מחדל
+  const savedTileId = localStorage.getItem('rocketil_tile');
+  applyTile(TILE_PRESETS.find(p => p.id === savedTileId) ?? TILE_PRESETS.find(p => p.id === 'esri-sat-labels'));
 
   // ─── State ──────────────────────────────────────────────────
   const alerts = [];
@@ -990,12 +1025,12 @@
     const isEnded = colorKey === 'green';
 
     const circle = L.circleMarker([alert.lat, alert.lng], {
-      radius: isEnded ? 7 : 10,
+      radius: isEnded ? 8 : 10,
       fillColor: color,
-      color: '#fff',
-      weight: 1.5,
-      opacity: 0.9,
-      fillOpacity: isEnded ? 0.5 : 0.85,
+      color: isEnded ? '#16a34a' : '#fff',
+      weight: isEnded ? 2.5 : 1.5,
+      opacity: 1,
+      fillOpacity: isEnded ? 0.9 : 0.85,
     });
 
     circle.bindPopup(`
@@ -1109,7 +1144,7 @@
       popupAnchor: [0, -40],
       html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
         <path d="M15 0C8.4 0 3 5.4 3 12c0 8.1 12 26 12 26S27 20.1 27 12C27 5.4 21.6 0 15 0z"
-              fill="#3b82f6" stroke="white" stroke-width="2"/>
+              fill="#ef4444" stroke="white" stroke-width="2"/>
         <circle cx="15" cy="12" r="5" fill="white"/>
       </svg>`,
     });
@@ -1170,7 +1205,7 @@
     document.getElementById('modal-dist').textContent   = `מרחק ממיקומך: ~${Math.round(distKm)} ק"מ`;
     document.getElementById('alert-modal').classList.add('visible');
     // מנגן את הסירן רק אם המודאל לא היה כבר פתוח
-    if (!_modalOpen) playSiren();
+    if (!_modalOpen && !_muted) playSiren();
     _modalOpen = true;
   }
 
@@ -1240,13 +1275,41 @@
     try { _sirenOsc?.stop(); _sirenOsc = null; } catch {}
   }
 
+  // ─── Mute ───────────────────────────────────────────────────
+  let _muted = localStorage.getItem('rocketil_muted') === 'true';
+
+  function toggleMute() {
+    _muted = !_muted;
+    localStorage.setItem('rocketil_muted', _muted);
+    const btn = document.getElementById('mute-btn');
+    btn.textContent = _muted ? '🔇' : '🔔';
+    btn.classList.toggle('muted', _muted);
+    if (_muted) stopSiren();
+  }
+
+  // החל מצב שמור בטעינה
+  (function initMute() {
+    const btn = document.getElementById('mute-btn');
+    btn.textContent = _muted ? '🔇' : '🔔';
+    btn.classList.toggle('muted', _muted);
+  })();
+
   // ─── Onboarding ─────────────────────────────────────────────
+  const ONBOARDING_KEY = 'rocketil_skip_onboarding';
+
   function closeOnboarding() {
+    if (document.getElementById('ob-skip-cb').checked) {
+      localStorage.setItem(ONBOARDING_KEY, 'true');
+    }
     document.getElementById('onboarding-overlay').classList.remove('visible');
     requestLocation();
   }
 
-  // מיקום מתבקש רק לאחר סגירת ה-onboarding
+  // אם המשתמש סימן "אל תציג שוב" — דלג ישירות
+  if (localStorage.getItem(ONBOARDING_KEY) === 'true') {
+    document.getElementById('onboarding-overlay').classList.remove('visible');
+    requestLocation();
+  }
 
 </script>
 </body>
