@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RocketIL — לוח בקרה התרעות פיקוד העורף</title>
+  <title>RocketIL — התרעות בזמן אמת</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
@@ -356,6 +356,100 @@
     }
     .modal-close:hover { opacity: 0.8; }
 
+    /* ─── Onboarding modal ─── */
+    .onboarding-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 9998;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .onboarding-overlay.visible { display: flex; }
+
+    .onboarding-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .onboarding-box::-webkit-scrollbar { width: 4px; }
+    .onboarding-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .onboarding-head {
+      padding: 24px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+    .onboarding-head .ob-icon { font-size: 2.8rem; margin-bottom: 8px; }
+    .onboarding-head h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 4px; }
+    .onboarding-head p  { font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+
+    .onboarding-steps { padding: 16px 24px; display: flex; flex-direction: column; gap: 4px; }
+
+    .ob-step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 14px 12px;
+      border-radius: 10px;
+      transition: background 0.15s;
+    }
+    .ob-step:hover { background: var(--surface2); }
+
+    .ob-step-icon {
+      font-size: 1.6rem;
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      background: var(--surface2);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ob-step-body h3 { font-size: 0.88rem; font-weight: 700; margin-bottom: 3px; }
+    .ob-step-body p  { font-size: 0.76rem; color: var(--muted); line-height: 1.55; }
+
+    .ob-divider { height: 1px; background: var(--border); margin: 0 24px; }
+
+    .onboarding-footer {
+      padding: 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .ob-start-btn {
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 13px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      width: 100%;
+    }
+    .ob-start-btn:hover { opacity: 0.85; }
+
+    .ob-note {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+
     /* ─── Map switcher ─── */
     .map-switcher {
       position: relative;
@@ -383,11 +477,14 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       min-width: 240px;
+      max-height: 420px;
+      overflow-y: auto;
       box-shadow: 0 8px 24px rgba(0,0,0,0.5);
       z-index: 2000;
-      overflow: hidden;
     }
     .map-dropdown.open { display: block; }
+    .map-dropdown::-webkit-scrollbar { width: 4px; }
+    .map-dropdown::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
     .map-dropdown-title {
       padding: 10px 14px 8px;
@@ -425,49 +522,97 @@
     }
 
     /* ─── Responsive ─── */
+    /* ─── header-actions wrapper (desktop) ─── */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ─── Tablet ─── */
     @media (max-width: 900px) {
       .sidebar { width: 280px; }
     }
 
+    /* ─── Mobile ─── */
     @media (max-width: 700px) {
+      /* Header — grid 3 שורות */
       header {
-        flex-wrap: wrap;
-        padding: 8px 12px;
-        gap: 8px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto auto auto;
+        grid-template-areas:
+          "title   status"
+          "stats   stats"
+          "actions actions";
+        padding: 10px 14px;
+        gap: 10px 8px;
       }
 
       header h1 {
-        font-size: 0.9rem;
-        flex: 1 1 100%;        /* שורה ראשונה לבד */
+        grid-area: title;
+        font-size: 0.92rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        align-self: center;
       }
 
+      .ws-status {
+        grid-area: status;
+        align-self: center;
+        gap: 5px;
+      }
+
+      /* stats — 3 תיבות שוות ברוחב */
       .header-stats {
-        gap: 10px;
-        flex: 1;
+        grid-area: stats;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0;
+        background: var(--surface2);
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border);
       }
 
-      .stat-value { font-size: 1.1rem; }
+      .stat {
+        padding: 8px 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        border-left: 1px solid var(--border);
+      }
+      .stat:last-child { border-left: none; }
 
-      .map-switcher,
-      .loc-btn,
-      .ws-status { flex-shrink: 0; }
+      .stat-value { font-size: 1.25rem; }
+      .stat-label { font-size: 0.6rem; }
 
-      /* הדרופדאון — ממוקם מימין כדי לא לצאת מהמסך */
+      /* כפתורים — שורה תחתונה, כל הרוחב */
+      .header-actions {
+        grid-area: actions;
+        display: flex;
+        gap: 8px;
+      }
+
+      .map-switcher { flex: 1; }
+      .map-btn      { width: 100%; }
+
+      .loc-btn      { flex: 1; }
+
+      /* דרופדאון מפה — לא יצא מהמסך */
       .map-dropdown {
-        left: auto;
-        right: 0;
-        min-width: 200px;
+        left: 0;
+        right: auto;
+        min-width: 100%;
       }
 
-      .ws-status span { display: none; }   /* מציג רק הנקודה */
-
+      /* layout */
       .main { flex-direction: column-reverse; }
       .sidebar {
         width: 100%;
-        height: 260px;
+        height: 250px;
         min-width: unset;
         border-left: none;
         border-top: 1px solid var(--border);
@@ -476,16 +621,17 @@
     }
 
     @media (max-width: 400px) {
+      header { padding: 8px 10px; gap: 8px; }
       header h1 { font-size: 0.8rem; }
-      .map-btn, .loc-btn { font-size: 0.68rem; padding: 4px 8px; }
-      .sidebar { height: 230px; }
+      .map-btn, .loc-btn { font-size: 0.7rem; padding: 7px 8px; }
+      .sidebar { height: 220px; }
     }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>🚀 RocketIL — לוח בקרה התרעות פיקוד העורף</h1>
+  <h1>🚀 RocketIL — התרעות בזמן אמת</h1>
 
   <div class="header-stats">
     <div class="stat">
@@ -502,20 +648,81 @@
     </div>
   </div>
 
-  <div class="map-switcher">
-    <button class="map-btn" id="map-btn" onclick="toggleMapDropdown()">🗺️ סוג מפה</button>
-    <div class="map-dropdown" id="map-dropdown">
-      <div class="map-dropdown-title">בחר סוג מפה</div>
+  <div class="header-actions">
+    <div class="map-switcher">
+      <button class="map-btn" id="map-btn" onclick="toggleMapDropdown()">🗺️ סוג מפה</button>
+      <div class="map-dropdown" id="map-dropdown">
+        <div class="map-dropdown-title">בחר סוג מפה</div>
+      </div>
     </div>
+    <button class="loc-btn" id="loc-btn" onclick="requestLocation()">📍 מיקום שלי</button>
   </div>
-
-  <button class="loc-btn" id="loc-btn" onclick="requestLocation()">📍 מיקום שלי</button>
 
   <div class="ws-status">
     <div class="ws-dot" id="ws-dot"></div>
     <span id="ws-label">מתחבר...</span>
   </div>
 </header>
+
+<!-- Onboarding modal -->
+<div class="onboarding-overlay visible" id="onboarding-overlay">
+  <div class="onboarding-box">
+
+    <div class="onboarding-head">
+      <div class="ob-icon">🚀</div>
+      <h2>ברוך הבא ל-RocketIL</h2>
+      <p>לוח בקרה להתרעות פיקוד העורף בזמן אמת<br>הנה כל מה שצריך לדעת לפני שמתחילים</p>
+    </div>
+
+    <div class="onboarding-steps">
+
+      <div class="ob-step">
+        <div class="ob-step-icon">🗺️</div>
+        <div class="ob-step-body">
+          <h3>מפה בזמן אמת</h3>
+          <p>כל התרעה מוצגת על המפה כנקודה צבעונית. לכל אזור מוצג רק העדכון האחרון. לחיצה על כרטיס בסיידבר תעיף אותך לנקודה על המפה.</p>
+        </div>
+      </div>
+
+      <div class="ob-divider"></div>
+
+      <div class="ob-step">
+        <div class="ob-step-icon">📍</div>
+        <div class="ob-step-body">
+          <h3>עדכון מיקום אוטומטי</h3>
+          <p>בכל כניסה לאתר המיקום שלך מתעדכן אוטומטית ומסומן על המפה עם pin כחול. הדפדפן יבקש ממך הרשאה — יש לאשר כדי לקבל התרעות קרבה.</p>
+        </div>
+      </div>
+
+      <div class="ob-divider"></div>
+
+      <div class="ob-step">
+        <div class="ob-step-icon">🚨</div>
+        <div class="ob-step-body">
+          <h3>התרעת קרבה ואזעקה</h3>
+          <p>אם מגיעה התרעה במרחק עד <strong style="color:var(--text)">50 ק"מ</strong> ממיקומך — ייפתח חלון מהבהב ותישמע אזעקה ברמקול. לחץ <strong style="color:var(--text)">"הבנתי"</strong> לסגירה ועצירת הצליל.</p>
+        </div>
+      </div>
+
+      <div class="ob-divider"></div>
+
+      <div class="ob-step">
+        <div class="ob-step-icon">🎨</div>
+        <div class="ob-step-body">
+          <h3>החלפת סוג מפה</h3>
+          <p>לחץ על <strong style="color:var(--text)">"סוג מפה"</strong> בהדר לבחירה מתוך 8 מפות — כולל מפות עם עברית מלאה, לווין, טופוגרפי ועוד.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="onboarding-footer">
+      <button class="ob-start-btn" onclick="closeOnboarding()">הבנתי — בוא נתחיל 🚀</button>
+      <p class="ob-note">האתר מתחבר אוטומטית ומציג התרעות חיות ברגע שהן מתקבלות.<br>אין צורך לרענן.</p>
+    </div>
+
+  </div>
+</div>
 
 <!-- Nearby alert modal -->
 <div class="alert-modal" id="alert-modal">
@@ -554,31 +761,72 @@
   const map = L.map('map', { zoomControl: true }).setView([31.5, 35.0], 8);
 
   const TILE_PRESETS = [
+    // ── כהות ──
     {
       id: 'carto-dark', name: '🌙 כהה', desc: 'CARTO Dark — ברירת מחדל',
       url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       attr: '© OpenStreetMap © CARTO', opts: { subdomains: 'abcd', maxZoom: 19 },
     },
     {
-      id: 'osm', name: '🗺️ OpenStreetMap', desc: 'עברית מלאה בישראל',
-      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      attr: '© OpenStreetMap contributors', opts: { maxZoom: 19 },
+      id: 'carto-dark-nolabels', name: '🌑 כהה ללא שמות', desc: 'CARTO Dark — ללא תוויות',
+      url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+      attr: '© OpenStreetMap © CARTO', opts: { subdomains: 'abcd', maxZoom: 19 },
     },
+    // ── בהירות ──
     {
       id: 'carto-light', name: '☀️ בהיר', desc: 'CARTO Light',
       url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
       attr: '© OpenStreetMap © CARTO', opts: { subdomains: 'abcd', maxZoom: 19 },
     },
     {
-      id: 'esri-street', name: '🏙️ רחובות', desc: 'Esri World Street Map — עברית',
+      id: 'carto-voyager', name: '🧭 Voyager', desc: 'CARTO Voyager — mid-tone נקי',
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      attr: '© OpenStreetMap © CARTO', opts: { subdomains: 'abcd', maxZoom: 19 },
+    },
+    // ── עברית / OSM ──
+    {
+      id: 'osm', name: '🗺️ OpenStreetMap', desc: 'עברית מלאה בישראל',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attr: '© OpenStreetMap contributors', opts: { maxZoom: 19 },
+    },
+    {
+      id: 'wikimedia', name: '📖 Wikimedia', desc: 'OSM נקי — עברית מלאה',
+      url: 'https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png',
+      attr: '© Wikimedia Maps © OpenStreetMap', opts: { maxZoom: 18 },
+    },
+    {
+      id: 'hot', name: '🏘️ הומניטרי', desc: 'HOT OpenStreetMap — עברית, צבעוני',
+      url: 'https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+      attr: '© OpenStreetMap © HOT', opts: { maxZoom: 19 },
+    },
+    {
+      id: 'cyclosm', name: '🚲 CyclOSM', desc: 'מפת אופניים ומסלולים — עברית',
+      url: 'https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png',
+      attr: '© OpenStreetMap © CyclOSM', opts: { maxZoom: 17 },
+    },
+    // ── טופוגרפי ──
+    {
+      id: 'opentopomap', name: '🏔️ OpenTopoMap', desc: 'קווי גובה מפורטים — עברית',
+      url: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
+      attr: '© OpenStreetMap © OpenTopoMap', opts: { maxZoom: 17 },
+    },
+    {
+      id: 'esri-topo', name: '⛰️ טופוגרפי Esri', desc: 'Esri World Topo Map — עברית',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri', opts: { maxZoom: 18 },
+    },
+    // ── עירוני ──
+    {
+      id: 'esri-street', name: '🏙️ רחובות Esri', desc: 'Esri World Street Map — עברית',
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
       attr: '© Esri', opts: { maxZoom: 18 },
     },
     {
-      id: 'esri-topo', name: '⛰️ טופוגרפי', desc: 'Esri World Topo Map — עברית',
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-      attr: '© Esri', opts: { maxZoom: 18 },
+      id: 'esri-natgeo', name: '🌿 National Geographic', desc: 'Esri National Geographic',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri © National Geographic', opts: { maxZoom: 16 },
     },
+    // ── לווין ──
     {
       id: 'esri-satellite', name: '🛰️ לווין', desc: 'Esri World Imagery',
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -590,10 +838,16 @@
       attr: '© Esri', opts: { maxZoom: 18 },
       overlay: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
     },
+    // ── מיוחדות ──
     {
       id: 'stadia-dark', name: '🌃 Stadia Dark', desc: 'כהה ומינימליסטי',
       url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
       attr: '© Stadia Maps © OpenStreetMap', opts: { maxZoom: 20 },
+    },
+    {
+      id: 'esri-gray', name: '⬜ אפור', desc: 'Esri Light Gray — נקי ומינימליסטי',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      attr: '© Esri', opts: { maxZoom: 16 },
     },
   ];
 
@@ -953,20 +1207,31 @@
     gain.connect(_audioCtx.destination);
 
     osc.type = 'sawtooth';
-    const t = _audioCtx.currentTime;
-    const cycles = 5;
+    const t        = _audioCtx.currentTime;
+    const duration = 10;   // שניות כולל fade-in ו-fade-out
+    const fadeIn   = 2.5;  // עליה הדרגתית
+    const fadeOut  = 2.5;  // ירידה הדרגתית
+    const peak     = 0.38;
 
-    gain.gain.setValueAtTime(0.4, t);
+    // fade-in מ-0 לשיא
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peak, t + fadeIn);
+    // שמירה על שיא עד תחילת fade-out
+    gain.gain.setValueAtTime(peak, t + duration - fadeOut);
+    // fade-out לאפס
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
 
+    // סירן — תדר עולה ויורד לאורך כל הנגינה
+    const cycleLen = 2;
+    const cycles   = Math.floor(duration / cycleLen);
     for (let i = 0; i < cycles; i++) {
-      osc.frequency.setValueAtTime(420, t + i * 2);
-      osc.frequency.linearRampToValueAtTime(900, t + i * 2 + 1);
-      osc.frequency.linearRampToValueAtTime(420, t + i * 2 + 2);
+      osc.frequency.setValueAtTime(420, t + i * cycleLen);
+      osc.frequency.linearRampToValueAtTime(900, t + i * cycleLen + cycleLen / 2);
+      osc.frequency.linearRampToValueAtTime(420, t + i * cycleLen + cycleLen);
     }
-    gain.gain.exponentialRampToValueAtTime(0.001, t + cycles * 2);
 
     osc.start(t);
-    osc.stop(t + cycles * 2);
+    osc.stop(t + duration);
     _sirenOsc = osc;
   }
 
@@ -974,7 +1239,14 @@
     try { _sirenOsc?.stop(); _sirenOsc = null; } catch {}
   }
 
-  requestLocation();
+  // ─── Onboarding ─────────────────────────────────────────────
+  function closeOnboarding() {
+    document.getElementById('onboarding-overlay').classList.remove('visible');
+    requestLocation();
+  }
+
+  // מיקום מתבקש רק לאחר סגירת ה-onboarding
+
 </script>
 </body>
 </html>
