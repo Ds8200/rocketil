@@ -23,6 +23,11 @@ def process_alerts(raw_alerts: list[dict]) -> list[Alert]:
             "lat": payload.get("lat"),
             "lng": payload.get("lng"),
             "timestamp": raw.get("timestamp"),
+            "oref_title": payload.get("oref_title"),
+            "oref_desc": payload.get("oref_desc"),
+            "oref_category": payload.get("oref_category"),
+            "region_id": raw.get("region_id"),
+            "created_at": raw.get("created_at"),
         }
 
         try:

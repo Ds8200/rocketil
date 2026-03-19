@@ -242,6 +242,27 @@
       margin-top: 4px;
     }
 
+    .card-title {
+      font-size: 0.82rem;
+      color: var(--text);
+      margin: 3px 0;
+      line-height: 1.4;
+    }
+
+    .card-desc {
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 5px;
+    }
+
+    .modal-oref-title { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .modal-oref-desc  { font-size: 0.82rem; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+
     /* ─── Map ─── */
     #map {
       flex: 1;
@@ -763,6 +784,8 @@
     <div class="modal-icon">🚨</div>
     <div class="modal-title">התרעה באזורך!</div>
     <div class="modal-city" id="modal-city">—</div>
+    <div class="modal-oref-title" id="modal-oref-title"></div>
+    <div class="modal-oref-desc" id="modal-oref-desc"></div>
     <div class="modal-detail" id="modal-detail">—</div>
     <div class="modal-dist" id="modal-dist"></div>
     <button class="modal-close" onclick="closeModal()">הבנתי</button>
@@ -942,16 +965,23 @@
 
   // ─── Color logic ────────────────────────────────────────────
   const TYPE_LABELS = {
+    news: 'התרעה מקדימה', rocket: 'רקטה',
     missiles: 'טילים', rockets: 'רקטות', infiltration: 'חדירה',
     earthquake: 'רעידת אדמה', update: 'הסתיים', hostile_aircraft: 'כלי טיס עוין',
     tsunami: 'צונאמי', hazmat: 'חומרים מסוכנים', terror: 'פיגוע',
   };
 
+  const SEVERITY_LABELS = {
+    critical: 'חמור', warn: 'אזהרה', warning: 'אזהרה', info: 'מידע',
+  };
+  function severityLabel(s) { return SEVERITY_LABELS[s?.toLowerCase()] || s || '—'; }
+
   function getColorKey(alert) {
     const type = (alert.type || '').toLowerCase();
     const sev  = (alert.severity || '').toLowerCase();
     if (type === 'update')              return 'green';
-    if (['missiles','rockets','hostile_aircraft','terror','infiltration'].includes(type)) return 'red';
+    if (type === 'news')                return 'orange';
+    if (['missiles','rockets','rocket','hostile_aircraft','terror','infiltration'].includes(type)) return 'red';
     if (['earthquake','tsunami','hazmat'].includes(type)) return 'purple';
     if (sev === 'critical')             return 'red';
     if (sev === 'warn' || sev === 'warning') return 'orange';
@@ -995,11 +1025,13 @@
         <span class="card-city">${alert.oref_city || alert.region_name || '—'}</span>
         <span class="card-time">${formatTime(alert.timestamp)}</span>
       </div>
+      ${alert.oref_title ? `<div class="card-title">${alert.oref_title}</div>` : ''}
+      ${alert.oref_desc  ? `<div class="card-desc">${alert.oref_desc}</div>` : ''}
       <div class="card-badges">
         <span class="badge ${colorKey}">${typeLabel(alert.type)}</span>
-        <span class="badge ${colorKey}">${alert.severity || '—'}</span>
+        <span class="badge ${colorKey}">${severityLabel(alert.severity)}</span>
+        ${alert.region_name ? `<span class="card-region">${alert.region_name}</span>` : ''}
       </div>
-      ${alert.region_name ? `<div class="card-region">${alert.region_name}</div>` : ''}
     `;
 
     card.addEventListener('click', () => {
@@ -1035,11 +1067,12 @@
 
     circle.bindPopup(`
       <div class="popup-title">${alert.oref_city || alert.region_name || '—'}</div>
+      ${alert.oref_title ? `<div class="popup-row"><strong>${alert.oref_title}</strong></div>` : ''}
+      ${alert.oref_desc  ? `<div class="popup-row" style="font-size:0.75rem">${alert.oref_desc}</div>` : ''}
       <div class="popup-row"><span>סוג:</span><strong>${typeLabel(alert.type)}</strong></div>
-      <div class="popup-row"><span>חומרה:</span><strong>${alert.severity || '—'}</strong></div>
+      <div class="popup-row"><span>חומרה:</span><strong>${severityLabel(alert.severity)}</strong></div>
       <div class="popup-row"><span>אזור:</span><strong>${alert.region_name || '—'}</strong></div>
       <div class="popup-row"><span>זמן:</span><strong>${formatTime(alert.timestamp)}</strong></div>
-      <div class="popup-row"><span>ID:</span><strong>${alert.event_id || '—'}</strong></div>
     `);
 
     // הסר סמן ישן לאותו איזור מהמפה (דדופ לפי region_name)
@@ -1200,9 +1233,11 @@
   let _modalOpen = false;
 
   function triggerNearbyAlert(alert, distKm) {
-    document.getElementById('modal-city').textContent   = alert.oref_city || alert.region_name || '—';
-    document.getElementById('modal-detail').textContent = `סוג: ${typeLabel(alert.type)} | חומרה: ${alert.severity || '—'}`;
-    document.getElementById('modal-dist').textContent   = `מרחק ממיקומך: ~${Math.round(distKm)} ק"מ`;
+    document.getElementById('modal-city').textContent       = alert.oref_city || alert.region_name || '—';
+    document.getElementById('modal-oref-title').textContent = alert.oref_title || '';
+    document.getElementById('modal-oref-desc').textContent  = alert.oref_desc  || '';
+    document.getElementById('modal-detail').textContent     = `סוג: ${typeLabel(alert.type)} | חומרה: ${severityLabel(alert.severity)}`;
+    document.getElementById('modal-dist').textContent       = `מרחק ממיקומך: ~${Math.round(distKm)} ק"מ`;
     document.getElementById('alert-modal').classList.add('visible');
     // מנגן את הסירן רק אם המודאל לא היה כבר פתוח
     if (!_modalOpen && !_muted) playSiren();

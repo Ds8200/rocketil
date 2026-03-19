@@ -1,9 +1,31 @@
 from datetime import datetime, timezone, timedelta
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, field_validator
 
 ISRAEL_TZ = timezone(timedelta(hours=3))
+
+
+class ThreatType(str, Enum):
+    NEWS = "news"
+    ROCKET = "rocket"
+    ROCKETS = "rockets"
+    MISSILES = "missiles"
+    UPDATE = "update"
+    INFILTRATION = "infiltration"
+    HOSTILE_AIRCRAFT = "hostile_aircraft"
+    EARTHQUAKE = "earthquake"
+    TSUNAMI = "tsunami"
+    HAZMAT = "hazmat"
+    TERROR = "terror"
+
+
+class AlertSeverity(str, Enum):
+    CRITICAL = "critical"
+    WARN = "warn"
+    WARNING = "warning"
+    INFO = "info"
 
 
 class Alert(BaseModel):
@@ -16,6 +38,11 @@ class Alert(BaseModel):
     lat: Optional[float] = None
     lng: Optional[float] = None
     timestamp: datetime
+    oref_title: Optional[str] = None
+    oref_desc: Optional[str] = None
+    oref_category: Optional[int] = None
+    region_id: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     @field_validator("lat", "lng", mode="before")
     @classmethod
@@ -29,6 +56,17 @@ class Alert(BaseModel):
             return v
         return datetime.fromtimestamp(int(v) / 1000, tz=ISRAEL_TZ)
 
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def parse_created_at(cls, v):
+        if v is None or isinstance(v, datetime):
+            return v
+        v_int = int(v)
+        # If value looks like milliseconds (>= year 2000 in ms), divide by 1000
+        if v_int > 1_000_000_000_000:
+            return datetime.fromtimestamp(v_int / 1000, tz=ISRAEL_TZ)
+        return datetime.fromtimestamp(v_int, tz=ISRAEL_TZ)
+
     def to_dict(self) -> dict:
         return {
             "event_id": self.event_id,
@@ -40,4 +78,9 @@ class Alert(BaseModel):
             "lat": self.lat,
             "lng": self.lng,
             "timestamp": self.timestamp.isoformat(),
+            "oref_title": self.oref_title,
+            "oref_desc": self.oref_desc,
+            "oref_category": self.oref_category,
+            "region_id": self.region_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

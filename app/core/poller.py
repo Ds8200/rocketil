@@ -3,13 +3,15 @@ import json
 import time
 
 from app.core.config import settings
+from app.services.alert_store import store
 from app.services.broadcaster import manager
 from app.services.fetcher import fetch_alerts
 from app.services.processor import process_alerts
 
 
 async def poll_loop() -> None:
-    last_ts = int(time.time() * 1000)
+    last_ts = 0
+    # last_ts = int(time.time() * 1000)
     print("[poller] Started")
 
     while True:
@@ -20,11 +22,12 @@ async def poll_loop() -> None:
                 alerts = process_alerts(raw_alerts)
 
                 for alert in alerts:
+                    store.upsert(alert)  # keep latest version in history
                     payload = json.dumps(alert.to_dict(), ensure_ascii=False)
                     await manager.broadcast(payload)
 
                 last_ts = int(max(a.timestamp.timestamp() * 1000 for a in alerts))
-                print(f"[poller] Sent {len(alerts)} alert(s) to {manager.count} client(s)")
+                print(f"[poller] Sent {len(alerts)} alert(s) to {manager.count} client(s) | store size: {store.size}")
 
         except asyncio.CancelledError:
             print("[poller] Stopped")
