@@ -959,8 +959,9 @@
 
   // ─── State ──────────────────────────────────────────────────
   const alerts = [];
-  const markers = {};        // alert_id → marker (לניווט מהסיידבר)
-  const regionMarkers = {};  // region_name → marker (דדופ על המפה — רק עדכון אחרון לאיזור)
+  const markers = {};        // alert_id  → marker   (ניווט מהסיידבר)
+  const regionMarkers = {};  // regionKey → marker   (דדופ על המפה — רק עדכון אחרון לאיזור)
+  const regionCards   = {};  // regionKey → { el, colorKey } (דדופ בסיידבר — רק עדכון אחרון)
   let totalCount = 0, activeCount = 0, endedCount = 0;
 
   // ─── Color logic ────────────────────────────────────────────
@@ -1013,7 +1014,7 @@
   }
 
   // ─── Sidebar card ───────────────────────────────────────────
-  function addCard(alert, colorKey) {
+  function addCard(alert, colorKey, regionKey) {
     const list = document.getElementById('alerts-list');
     document.getElementById('empty-state')?.remove();
 
@@ -1042,6 +1043,9 @@
     });
 
     list.insertBefore(card, list.firstChild);
+
+    // שמור הפניה לקארד לפי אזור — לדדופ בעדכון הבא
+    if (regionKey) regionCards[regionKey] = { el: card, colorKey };
 
     // keep max 100 cards
     if (list.children.length > 100) {
@@ -1101,14 +1105,23 @@
 
   // ─── Handle incoming alert ───────────────────────────────────
   function handleAlert(alert) {
-    const colorKey = getColorKey(alert);
-    const isEnded = colorKey === 'green';
+    const colorKey  = getColorKey(alert);
+    const isEnded   = colorKey === 'green';
+    const regionKey = alert.region_name || alert.oref_city;
+
+    // אם כבר קיים קארד לאותו אזור — מסיר אותו ומבטל את תרומתו לסטטיסטיקות
+    if (regionKey && regionCards[regionKey]) {
+      const prev = regionCards[regionKey];
+      prev.el.remove();
+      totalCount--;
+      if (prev.colorKey === 'green') endedCount--; else activeCount--;
+    }
 
     totalCount++;
     if (isEnded) endedCount++; else activeCount++;
     updateStats();
 
-    addCard(alert, colorKey);
+    addCard(alert, colorKey, regionKey);
     addMarker(alert, colorKey);
     checkNearby(alert);
   }
@@ -1118,6 +1131,7 @@
     Object.values(regionMarkers).forEach(m => map.removeLayer(m));
     Object.keys(markers).forEach(k => delete markers[k]);
     Object.keys(regionMarkers).forEach(k => delete regionMarkers[k]);
+    Object.keys(regionCards).forEach(k => delete regionCards[k]);
     const list = document.getElementById('alerts-list');
     list.innerHTML = `
       <div class="empty-state" id="empty-state">
@@ -1134,6 +1148,7 @@
   // ─── WebSocket ──────────────────────────────────────────────
   const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
   let ws, reconnectTimer;
+  let _liveMode = false;  // false בזמן replay היסטוריה — מודאל/סירן לא מופעלים
 
   function connect() {
     ws = new WebSocket(WS_URL);
@@ -1146,14 +1161,16 @@
 
     ws.onmessage = (event) => {
       try {
-        const alert = JSON.parse(event.data);
-        handleAlert(alert);
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'history_end') { _liveMode = true; return; }
+        handleAlert(msg);
       } catch (e) {
         console.error('Parse error:', e);
       }
     };
 
     ws.onclose = () => {
+      _liveMode = false;  // reset — החיבור הבא יתחיל עם replay
       document.getElementById('ws-dot').className   = 'ws-dot';
       document.getElementById('ws-label').textContent = 'מנותק — מתחבר מחדש...';
       reconnectTimer = setTimeout(connect, 3000);
@@ -1223,6 +1240,7 @@
   }
 
   function checkNearby(alert) {
+    if (!_liveMode) return;             // היסטוריה — לא מפעילים מודאל/סירן
     if (!userLocation || !alert.lat || !alert.lng) return;
     if (alert.type === 'update') return;  // התרעת סיום — לא פותחים מודאל
     const dist = haversineKm(userLocation.lat, userLocation.lng, alert.lat, alert.lng);
@@ -1261,6 +1279,7 @@
   let _audioCtx    = null;
   let _sirenOsc    = null;
   let _sirenActive = false;
+  let _sirenTimer  = null;   // setTimeout handle — מבטיח ביטול מוחלט של הלופ
 
   document.addEventListener('click', () => {
     if (!_audioCtx) {
@@ -1296,17 +1315,15 @@
 
     osc.type = 'sawtooth';
     const t        = _audioCtx.currentTime;
-    const duration = 4;    // כל מחזור 4 שניות — מלופ עד שהמודאל נסגר
+    const duration = 4;    // כל מחזור 4 שניות
     const cycleLen = 2;
     const peak     = 0.38;
 
-    // fade-in קצר בתחילת כל מחזור
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(peak, t + 0.4);
     gain.gain.setValueAtTime(peak, t + duration - 0.4);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
 
-    // תדר עולה ויורד — 2 מחזורי סירן בתוך כל cycle
     const cycles = Math.floor(duration / cycleLen);
     for (let i = 0; i < cycles; i++) {
       osc.frequency.setValueAtTime(420, t + i * cycleLen);
@@ -1318,12 +1335,14 @@
     osc.stop(t + duration);
     _sirenOsc = osc;
 
-    // כשהמחזור נגמר — מתחיל מחדש אוטומטית (אם המודאל עדיין פתוח)
-    osc.onended = () => { if (_sirenActive) _sirenCycle(); };
+    // setTimeout במקום osc.onended — clearTimeout מבטיח עצירה מוחלטת
+    _sirenTimer = setTimeout(_sirenCycle, duration * 1000);
   }
 
   function stopSiren() {
     _sirenActive = false;
+    clearTimeout(_sirenTimer);   // מבטל את המחזור הבא לפני שיתחיל
+    _sirenTimer = null;
     try { _sirenOsc?.stop(); _sirenOsc = null; } catch {}
   }
 
