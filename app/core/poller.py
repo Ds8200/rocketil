@@ -25,7 +25,7 @@ async def poll_loop() -> None:
                     payload = json.dumps(alert.to_dict(), ensure_ascii=False)
                     await manager.broadcast(payload)
 
-                last_ts = int(max(a.timestamp.timestamp() * 1000 for a in alerts))
+                last_ts = int(max(a.timestamp.timestamp() * 1000 for a in alerts)) + 1
                 print(f"[poller] Sent {len(alerts)} alert(s) to {manager.count} client(s) | store size: {store.size}")
 
         except asyncio.CancelledError:

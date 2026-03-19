@@ -1224,6 +1224,7 @@
 
   function checkNearby(alert) {
     if (!userLocation || !alert.lat || !alert.lng) return;
+    if (alert.type === 'update') return;  // התרעת סיום — לא פותחים מודאל
     const dist = haversineKm(userLocation.lat, userLocation.lng, alert.lat, alert.lng);
     if (dist > NEARBY_KM) return;
     triggerNearbyAlert(alert, dist);
@@ -1233,27 +1234,33 @@
   let _modalOpen = false;
 
   function triggerNearbyAlert(alert, distKm) {
+    // עדכן תוכן המודאל תמיד (גם אם כבר פתוח — מציג את ההתרעה האחרונה)
     document.getElementById('modal-city').textContent       = alert.oref_city || alert.region_name || '—';
     document.getElementById('modal-oref-title').textContent = alert.oref_title || '';
     document.getElementById('modal-oref-desc').textContent  = alert.oref_desc  || '';
     document.getElementById('modal-detail').textContent     = `סוג: ${typeLabel(alert.type)} | חומרה: ${severityLabel(alert.severity)}`;
     document.getElementById('modal-dist').textContent       = `מרחק ממיקומך: ~${Math.round(distKm)} ק"מ`;
     document.getElementById('alert-modal').classList.add('visible');
-    // מנגן את הסירן רק אם המודאל לא היה כבר פתוח
-    if (!_modalOpen && !_muted) playSiren();
-    _modalOpen = true;
+
+    // הסירן מופעל פעם אחת בלבד — בפתיחה הראשונה של המודאל
+    // _modalOpen מוצב מיד (לא אחרי await) כדי שהתרעות נוספות לא יפעילו סירן נוסף
+    if (!_modalOpen && !_muted) {
+      _modalOpen = true;
+      playSiren();  // fire-and-forget — אין await, לא חוסם, מתחיל מיד
+    }
   }
 
   function closeModal() {
     document.getElementById('alert-modal').classList.remove('visible');
     _modalOpen = false;
-    stopSiren();
+    stopSiren();  // עוצר את הלופ ואת ה-oscillator הנוכחי
   }
 
   // ─── Siren (Web Audio API) ───────────────────────────────────
   // AudioContext חייב להיווצר על gesture — נוצר בפעם הראשונה שהמשתמש לוחץ
-  let _audioCtx = null;
-  let _sirenOsc = null;
+  let _audioCtx    = null;
+  let _sirenOsc    = null;
+  let _sirenActive = false;
 
   document.addEventListener('click', () => {
     if (!_audioCtx) {
@@ -1269,7 +1276,17 @@
     }
     if (_audioCtx.state === 'suspended') await _audioCtx.resume();
 
-    // עצור סירן קודם אם רץ
+    // בדיקה אחרי ה-await — המודאל אולי נסגר בזמן שחיכינו לרזולוציה
+    if (!_modalOpen) return;
+
+    _sirenActive = true;
+    _sirenCycle();
+  }
+
+  function _sirenCycle() {
+    if (!_sirenActive || !_audioCtx) return;
+
+    // עצור oscillator קודם אם עדיין רץ
     try { _sirenOsc?.stop(); } catch {}
 
     const osc  = _audioCtx.createOscillator();
@@ -1279,22 +1296,18 @@
 
     osc.type = 'sawtooth';
     const t        = _audioCtx.currentTime;
-    const duration = 10;   // שניות כולל fade-in ו-fade-out
-    const fadeIn   = 2.5;  // עליה הדרגתית
-    const fadeOut  = 2.5;  // ירידה הדרגתית
+    const duration = 4;    // כל מחזור 4 שניות — מלופ עד שהמודאל נסגר
+    const cycleLen = 2;
     const peak     = 0.38;
 
-    // fade-in מ-0 לשיא
+    // fade-in קצר בתחילת כל מחזור
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(peak, t + fadeIn);
-    // שמירה על שיא עד תחילת fade-out
-    gain.gain.setValueAtTime(peak, t + duration - fadeOut);
-    // fade-out לאפס
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.4);
+    gain.gain.setValueAtTime(peak, t + duration - 0.4);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
 
-    // סירן — תדר עולה ויורד לאורך כל הנגינה
-    const cycleLen = 2;
-    const cycles   = Math.floor(duration / cycleLen);
+    // תדר עולה ויורד — 2 מחזורי סירן בתוך כל cycle
+    const cycles = Math.floor(duration / cycleLen);
     for (let i = 0; i < cycles; i++) {
       osc.frequency.setValueAtTime(420, t + i * cycleLen);
       osc.frequency.linearRampToValueAtTime(900, t + i * cycleLen + cycleLen / 2);
@@ -1304,9 +1317,13 @@
     osc.start(t);
     osc.stop(t + duration);
     _sirenOsc = osc;
+
+    // כשהמחזור נגמר — מתחיל מחדש אוטומטית (אם המודאל עדיין פתוח)
+    osc.onended = () => { if (_sirenActive) _sirenCycle(); };
   }
 
   function stopSiren() {
+    _sirenActive = false;
     try { _sirenOsc?.stop(); _sirenOsc = null; } catch {}
   }
 
