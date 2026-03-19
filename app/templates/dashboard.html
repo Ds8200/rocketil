@@ -242,6 +242,13 @@
       margin-top: 4px;
     }
 
+    .card-dist {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 5px;
+      text-align: left;
+    }
+
     .card-title {
       font-size: 0.82rem;
       color: var(--text);
@@ -1014,7 +1021,7 @@
   }
 
   // ─── Sidebar card ───────────────────────────────────────────
-  function addCard(alert, colorKey, regionKey) {
+  function addCard(alert, colorKey, regionKey, distKm) {
     const list = document.getElementById('alerts-list');
     document.getElementById('empty-state')?.remove();
 
@@ -1033,6 +1040,7 @@
         <span class="badge ${colorKey}">${severityLabel(alert.severity)}</span>
         ${alert.region_name ? `<span class="card-region">${alert.region_name}</span>` : ''}
       </div>
+      ${distKm != null ? `<div class="card-dist">📍 ${Math.round(distKm)} ק"מ ממך</div>` : ''}
     `;
 
     card.addEventListener('click', () => {
@@ -1116,7 +1124,11 @@
     if (isEnded) endedCount++; else activeCount++;
     updateStats();
 
-    addCard(alert, colorKey, regionKey);
+    const distKm = (userLocation && alert.lat && alert.lng)
+      ? haversineKm(userLocation.lat, userLocation.lng, alert.lat, alert.lng)
+      : null;
+
+    addCard(alert, colorKey, regionKey, distKm);
     addMarker(alert, colorKey);
     checkNearby(alert);
   }
@@ -1224,7 +1236,7 @@
       map.flyTo([userLocation.lat, userLocation.lng], 11, { duration: 1 });
     }, () => {
       btn.textContent = '📍 ללא הרשאה';
-    });
+    }, { enableHighAccuracy: true, timeout: 10000 });
   }
 
   function haversineKm(lat1, lng1, lat2, lng2) {
