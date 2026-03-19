@@ -243,10 +243,9 @@
     }
 
     .card-dist {
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       color: var(--muted);
-      margin-top: 5px;
-      text-align: left;
+      margin-right: auto;  /* דוחף את המרחק לצד שמאל */
     }
 
     .card-title {
@@ -1038,9 +1037,8 @@
       <div class="card-badges">
         <span class="badge ${colorKey}">${typeLabel(alert.type)}</span>
         <span class="badge ${colorKey}">${severityLabel(alert.severity)}</span>
-        ${alert.region_name ? `<span class="card-region">${alert.region_name}</span>` : ''}
+        ${distKm != null ? `<span class="card-dist">📍 ${Math.round(distKm)} ק"מ ממך</span>` : ''}
       </div>
-      ${distKm != null ? `<div class="card-dist">📍 ${Math.round(distKm)} ק"מ ממך</div>` : ''}
     `;
 
     card.addEventListener('click', () => {
