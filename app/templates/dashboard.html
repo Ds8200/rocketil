@@ -1050,8 +1050,8 @@
 
     list.insertBefore(card, list.firstChild);
 
-    // שמור הפניה לקארד לפי אזור — לדדופ בעדכון הבא
-    if (regionKey) regionCards[regionKey] = { el: card, colorKey };
+    // שמור הפניה לקארד לפי אזור — לדדופ בעדכון הבא + קואורדינטות לעדכון מרחק
+    if (regionKey) regionCards[regionKey] = { el: card, colorKey, lat: alert.lat, lng: alert.lng };
   }
 
   // ─── Map marker ─────────────────────────────────────────────
@@ -1232,8 +1232,24 @@
       btn.classList.add('saved');
       placeUserMarker(userLocation.lat, userLocation.lng, userLocation.accuracy);
       map.flyTo([userLocation.lat, userLocation.lng], 11, { duration: 1 });
+      refreshCardDistances();
     }, () => {
       btn.textContent = '📍 ללא הרשאה';
+    });
+  }
+
+  function refreshCardDistances() {
+    if (!userLocation) return;
+    Object.values(regionCards).forEach(({ el, lat, lng }) => {
+      if (!lat || !lng) return;
+      const distKm = haversineKm(userLocation.lat, userLocation.lng, lat, lng);
+      let distEl = el.querySelector('.card-dist');
+      if (!distEl) {
+        distEl = document.createElement('span');
+        distEl.className = 'card-dist';
+        el.querySelector('.card-badges').appendChild(distEl);
+      }
+      distEl.textContent = `📍 ${Math.round(distKm)} ק"מ ממך`;
     });
   }
 
