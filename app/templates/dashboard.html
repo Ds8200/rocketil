@@ -1046,11 +1046,6 @@
 
     // שמור הפניה לקארד לפי אזור — לדדופ בעדכון הבא
     if (regionKey) regionCards[regionKey] = { el: card, colorKey };
-
-    // keep max 100 cards
-    if (list.children.length > 100) {
-      list.removeChild(list.lastChild);
-    }
   }
 
   // ─── Map marker ─────────────────────────────────────────────
