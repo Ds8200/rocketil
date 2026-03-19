@@ -1218,27 +1218,41 @@
     userMarker.addTo(map);
   }
 
+  let _watchId = null;
+
   function requestLocation() {
     const btn = document.getElementById('loc-btn');
     if (!navigator.geolocation) {
       btn.textContent = '📍 לא נתמך';
       return;
     }
+
+    // עצור watch קודם אם קיים
+    if (_watchId !== null) {
+      navigator.geolocation.clearWatch(_watchId);
+      _watchId = null;
+    }
+
     btn.textContent = '📍 מאתר...';
     btn.classList.remove('saved');
-    navigator.geolocation.getCurrentPosition(pos => {
-      userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-      btn.textContent = `📍 ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`;
+
+    // watchPosition מחזיר מיד מיקום מהיר (WiFi) ומשפר לGPS כשנועל
+    _watchId = navigator.geolocation.watchPosition(pos => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const isFirst = !userLocation;
+      userLocation = { lat: latitude, lng: longitude, accuracy };
+      btn.textContent = `📍 ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
       btn.classList.add('saved');
-      placeUserMarker(userLocation.lat, userLocation.lng, userLocation.accuracy);
-      map.flyTo([userLocation.lat, userLocation.lng], 11, { duration: 1 });
+      placeUserMarker(latitude, longitude, accuracy);
+      // flyTo רק בפעם הראשונה — לא נוסע בכל עדכון GPS
+      if (isFirst) map.flyTo([latitude, longitude], 13, { duration: 1 });
     }, (err) => {
       if (err.code === err.PERMISSION_DENIED) {
         btn.textContent = '📍 ללא הרשאה';
       } else {
         btn.textContent = '📍 נסה שנית';
       }
-    }, { enableHighAccuracy: true, timeout: 30000 });
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   }
 
   function haversineKm(lat1, lng1, lat2, lng2) {
