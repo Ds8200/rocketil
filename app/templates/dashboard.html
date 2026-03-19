@@ -1232,9 +1232,13 @@
       btn.classList.add('saved');
       placeUserMarker(userLocation.lat, userLocation.lng, userLocation.accuracy);
       map.flyTo([userLocation.lat, userLocation.lng], 11, { duration: 1 });
-    }, () => {
-      btn.textContent = '📍 ללא הרשאה';
-    }, { enableHighAccuracy: true, timeout: 10000 });
+    }, (err) => {
+      if (err.code === err.PERMISSION_DENIED) {
+        btn.textContent = '📍 ללא הרשאה';
+      } else {
+        btn.textContent = '📍 נסה שנית';
+      }
+    }, { enableHighAccuracy: true, timeout: 30000 });
   }
 
   function haversineKm(lat1, lng1, lat2, lng2) {
