@@ -10,8 +10,7 @@ from app.services.processor import process_alerts
 
 
 async def poll_loop() -> None:
-    last_ts = 1773956527566
-    # last_ts = int(time.time() * 1000)
+    last_ts = int(time.time() * 1000)
     print("[poller] Started")
 
     while True:
